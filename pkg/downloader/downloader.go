@@ -175,13 +175,15 @@ func InstallVersion(version string) error {
 	}
 
 	// Verify SHA-256 checksum against official SHASUMS256.txt
+	shasumsURL := fmt.Sprintf("%s/%s/SHASUMS256.txt", strings.TrimRight(cfg.NodeDistURL, "/"), normalized)
 	fmt.Printf("Verifying SHA-256 checksum against official SHASUMS256.txt...\n")
+	fmt.Printf("  Checksum Link: %s\n", shasumsURL)
 	checksum, err := VerifyArchiveChecksum(normalized, platform.ArchiveName, cacheFile)
 	if err != nil {
 		_ = os.Remove(cacheFile) // Remove invalid/corrupt archive
-		return fmt.Errorf("SECURITY ALERT: Checksum verification failed: %w", err)
+		return fmt.Errorf("SECURITY ALERT: Checksum verification failed: %w\nVerify manually at: %s", err, shasumsURL)
 	}
-	fmt.Printf("Checksum verified: %s\n", checksum)
+	fmt.Printf("  ✓ Checksum verified: %s\n", checksum)
 
 	fmt.Printf("Extracting %s into %s...\n", normalized, destDir)
 
@@ -434,7 +436,9 @@ func VerifyArchiveChecksum(version, archiveName, filePath string) (string, error
 	}
 
 	if !strings.EqualFold(actualHash, expectedHash) {
-		return "", fmt.Errorf("checksum mismatch!\n  Expected: %s\n  Actual:   %s", expectedHash, actualHash)
+		cfg, _ := config.LoadConfig()
+		shasumsURL := fmt.Sprintf("%s/%s/SHASUMS256.txt", strings.TrimRight(cfg.NodeDistURL, "/"), version)
+		return "", fmt.Errorf("checksum mismatch!\n  Expected: %s\n  Actual:   %s\n  Verify manually at: %s", expectedHash, actualHash, shasumsURL)
 	}
 
 	return actualHash, nil
@@ -453,7 +457,15 @@ func VerifyVersion(version string) error {
 		return fmt.Errorf("archive %s not found in cache (%s). Run 'nvsh install %s' first", platform.ArchiveName, archivePath, normalized)
 	}
 
+	cfg, _ := config.LoadConfig()
+	shasumsURL := fmt.Sprintf("%s/%s/SHASUMS256.txt", strings.TrimRight(cfg.NodeDistURL, "/"), normalized)
+	sigURL := fmt.Sprintf("%s/%s/SHASUMS256.txt.sig", strings.TrimRight(cfg.NodeDistURL, "/"), normalized)
+	releaseKeysURL := "https://github.com/nodejs/node#release-keys"
+
 	fmt.Printf("Verifying Node.js release %s (%s)...\n", normalized, platform.ArchiveName)
+	fmt.Printf("  • Checksum Link (SHASUMS256): %s\n", shasumsURL)
+	fmt.Printf("  • Signature Link (GPG Sig):   %s\n", sigURL)
+	fmt.Printf("  • Official Node.js Keys Link:  %s\n\n", releaseKeysURL)
 
 	// 1. SHA-256 Verification
 	checksums, shasumsRaw, err := FetchSHASUMS(normalized)
@@ -463,7 +475,7 @@ func VerifyVersion(version string) error {
 
 	expectedHash, found := checksums[platform.ArchiveName]
 	if !found {
-		return fmt.Errorf("archive %s not listed in official SHASUMS256.txt", platform.ArchiveName)
+		return fmt.Errorf("archive %s not listed in official SHASUMS256.txt (%s)", platform.ArchiveName, shasumsURL)
 	}
 
 	actualHash, err := CalculateFileSHA256(archivePath)
@@ -472,14 +484,12 @@ func VerifyVersion(version string) error {
 	}
 
 	if !strings.EqualFold(actualHash, expectedHash) {
-		return fmt.Errorf("TAMPERING / CORRUPTION DETECTED!\n  Expected SHA-256: %s\n  Actual SHA-256:   %s", expectedHash, actualHash)
+		return fmt.Errorf("TAMPERING / CORRUPTION DETECTED!\n  Expected SHA-256: %s\n  Actual SHA-256:   %s\n  Verify manually at: %s", expectedHash, actualHash, shasumsURL)
 	}
 
-	fmt.Printf("✓ SHA-256 Checksum VALID: %s\n", actualHash)
+	fmt.Printf("✓ SHA-256 Checksum VALID: %s\n\n", actualHash)
 
 	// 2. GPG Signature Verification of SHASUMS256.txt
-	cfg, _ := config.LoadConfig()
-	sigURL := fmt.Sprintf("%s/%s/SHASUMS256.txt.sig", strings.TrimRight(cfg.NodeDistURL, "/"), normalized)
 	resp, err := http.Get(sigURL)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		fmt.Printf("Notice: Could not download GPG signature from %s\n", sigURL)
@@ -500,7 +510,7 @@ func VerifyVersion(version string) error {
 	gpgPath, err := exec.LookPath("gpg")
 	if err != nil {
 		fmt.Println("✓ Release checksum matches official nodejs.org distribution.")
-		fmt.Println("  (Note: 'gpg' is not installed on this system to verify the detached PGP signature).")
+		fmt.Printf("  (Note: 'gpg' is not installed on this system. You can inspect the signature at: %s)\n", sigURL)
 		return nil
 	}
 
@@ -509,7 +519,7 @@ func VerifyVersion(version string) error {
 	output, err := cmd.CombinedOutput()
 	fmt.Println(string(output))
 	if err != nil {
-		fmt.Println("  Note: If gpg reported 'Can't check signature: No public key', you can import the official Node.js release keys.")
+		fmt.Printf("  Note: If gpg reported 'Can't check signature: No public key', you can import the official release keys from: %s\n", releaseKeysURL)
 	} else {
 		fmt.Println("✓ GPG Signature VALID (Signed by official Node.js release key).")
 	}

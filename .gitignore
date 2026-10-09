@@ -1,0 +1,4 @@
+nvsh
+*.exe
+dist/
+.DS_Store

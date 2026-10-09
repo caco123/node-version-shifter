@@ -60,6 +60,8 @@ func main() {
 		cmdExec(os.Args[2:])
 	case "rehash", "shims":
 		cmdRehash()
+	case "verify":
+		cmdVerify(os.Args[2:])
 	case "setup", "init":
 		cmdSetup()
 	case "env":
@@ -101,6 +103,7 @@ Commands:
   ls-remote [filter]    List available remote versions from nodejs.org
   which <command>       Display full path to executable that shim would run
   exec <ver> <cmd...>   Run a command with a specific Node.js version
+  verify <version>      Verify SHA-256 checksum and GPG signature of downloaded Node.js
   rehash, shims         Recreate/update all shims in ~/.nvsh/shims (no symlinks)
   setup                 Configure environment and shell profile without admin rights
   env                   Print PATH environment variables for eval "$(nvsh env)"
@@ -391,6 +394,25 @@ func cmdExec(args []string) {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
+		os.Exit(1)
+	}
+}
+
+func cmdVerify(args []string) {
+	if len(args) == 0 {
+		fmt.Println("Usage: nvsh verify <version>")
+		os.Exit(1)
+	}
+
+	target := args[0]
+	release, err := remote.ResolveRemoteVersion(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error resolving version: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := downloader.VerifyVersion(release.Version); err != nil {
+		fmt.Fprintf(os.Stderr, "Verification failed: %v\n", err)
 		os.Exit(1)
 	}
 }

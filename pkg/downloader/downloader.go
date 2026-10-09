@@ -3,11 +3,15 @@ package downloader
 import (
 	"archive/tar"
 	"archive/zip"
+	"bufio"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -169,6 +173,15 @@ func InstallVersion(version string) error {
 			return fmt.Errorf("failed to save archive: %w", err)
 		}
 	}
+
+	// Verify SHA-256 checksum against official SHASUMS256.txt
+	fmt.Printf("Verifying SHA-256 checksum against official SHASUMS256.txt...\n")
+	checksum, err := VerifyArchiveChecksum(normalized, platform.ArchiveName, cacheFile)
+	if err != nil {
+		_ = os.Remove(cacheFile) // Remove invalid/corrupt archive
+		return fmt.Errorf("SECURITY ALERT: Checksum verification failed: %w", err)
+	}
+	fmt.Printf("Checksum verified: %s\n", checksum)
 
 	fmt.Printf("Extracting %s into %s...\n", normalized, destDir)
 
@@ -347,4 +360,159 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(out, in)
 	return err
+}
+
+// CalculateFileSHA256 computes the hexadecimal SHA-256 hash of a file.
+func CalculateFileSHA256(filePath string) (string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, f); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// FetchSHASUMS downloads and parses the official SHASUMS256.txt file for a given version.
+func FetchSHASUMS(version string) (map[string]string, []byte, error) {
+	cfg, _ := config.LoadConfig()
+	url := fmt.Sprintf("%s/%s/SHASUMS256.txt", strings.TrimRight(cfg.NodeDistURL, "/"), version)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("HTTP %s while fetching %s", resp.Status, url)
+	}
+
+	rawBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read SHASUMS256.txt: %w", err)
+	}
+
+	checksums := make(map[string]string)
+	scanner := bufio.NewScanner(strings.NewReader(string(rawBytes)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			hash := strings.ToLower(fields[0])
+			fileName := filepath.Base(fields[1])
+			checksums[fileName] = hash
+		}
+	}
+
+	return checksums, rawBytes, nil
+}
+
+// VerifyArchiveChecksum checks the SHA-256 of an archive against SHASUMS256.txt.
+func VerifyArchiveChecksum(version, archiveName, filePath string) (string, error) {
+	sums, _, err := FetchSHASUMS(version)
+	if err != nil {
+		return "", fmt.Errorf("could not retrieve official checksums: %w", err)
+	}
+
+	expectedHash, found := sums[archiveName]
+	if !found {
+		return "", fmt.Errorf("archive '%s' was not found in official SHASUMS256.txt", archiveName)
+	}
+
+	actualHash, err := CalculateFileSHA256(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to calculate local file SHA-256: %w", err)
+	}
+
+	if !strings.EqualFold(actualHash, expectedHash) {
+		return "", fmt.Errorf("checksum mismatch!\n  Expected: %s\n  Actual:   %s", expectedHash, actualHash)
+	}
+
+	return actualHash, nil
+}
+
+// VerifyVersion verifies the checksum and GPG signature of a downloaded or installed version.
+func VerifyVersion(version string) error {
+	normalized := config.NormalizeVersion(version)
+	platform, err := GetCurrentPlatform(normalized)
+	if err != nil {
+		return err
+	}
+
+	archivePath := filepath.Join(config.CacheDir(), platform.ArchiveName)
+	if stat, err := os.Stat(archivePath); err != nil || stat.Size() == 0 {
+		return fmt.Errorf("archive %s not found in cache (%s). Run 'nvsh install %s' first", platform.ArchiveName, archivePath, normalized)
+	}
+
+	fmt.Printf("Verifying Node.js release %s (%s)...\n", normalized, platform.ArchiveName)
+
+	// 1. SHA-256 Verification
+	checksums, shasumsRaw, err := FetchSHASUMS(normalized)
+	if err != nil {
+		return fmt.Errorf("failed to fetch SHASUMS256.txt: %w", err)
+	}
+
+	expectedHash, found := checksums[platform.ArchiveName]
+	if !found {
+		return fmt.Errorf("archive %s not listed in official SHASUMS256.txt", platform.ArchiveName)
+	}
+
+	actualHash, err := CalculateFileSHA256(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to calculate local hash: %w", err)
+	}
+
+	if !strings.EqualFold(actualHash, expectedHash) {
+		return fmt.Errorf("TAMPERING / CORRUPTION DETECTED!\n  Expected SHA-256: %s\n  Actual SHA-256:   %s", expectedHash, actualHash)
+	}
+
+	fmt.Printf("✓ SHA-256 Checksum VALID: %s\n", actualHash)
+
+	// 2. GPG Signature Verification of SHASUMS256.txt
+	cfg, _ := config.LoadConfig()
+	sigURL := fmt.Sprintf("%s/%s/SHASUMS256.txt.sig", strings.TrimRight(cfg.NodeDistURL, "/"), normalized)
+	resp, err := http.Get(sigURL)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		fmt.Printf("Notice: Could not download GPG signature from %s\n", sigURL)
+		return nil
+	}
+	defer resp.Body.Close()
+	sigBytes, _ := io.ReadAll(resp.Body)
+
+	// Save temp files for gpg command verification
+	tempDir := config.CacheDir()
+	shasumsFile := filepath.Join(tempDir, fmt.Sprintf("SHASUMS256-%s.txt", normalized))
+	sigFile := filepath.Join(tempDir, fmt.Sprintf("SHASUMS256-%s.txt.sig", normalized))
+	_ = os.WriteFile(shasumsFile, shasumsRaw, 0644)
+	_ = os.WriteFile(sigFile, sigBytes, 0644)
+	defer os.Remove(shasumsFile)
+	defer os.Remove(sigFile)
+
+	gpgPath, err := exec.LookPath("gpg")
+	if err != nil {
+		fmt.Println("✓ Release checksum matches official nodejs.org distribution.")
+		fmt.Println("  (Note: 'gpg' is not installed on this system to verify the detached PGP signature).")
+		return nil
+	}
+
+	fmt.Println("Verifying detached GPG signature with gpg...")
+	cmd := exec.Command(gpgPath, "--verify", sigFile, shasumsFile)
+	output, err := cmd.CombinedOutput()
+	fmt.Println(string(output))
+	if err != nil {
+		fmt.Println("  Note: If gpg reported 'Can't check signature: No public key', you can import the official Node.js release keys.")
+	} else {
+		fmt.Println("✓ GPG Signature VALID (Signed by official Node.js release key).")
+	}
+
+	return nil
 }

@@ -162,7 +162,19 @@ nvsh exec 20 npm test
 nvsh uninstall 18.20.0
 ```
 
-### 7. Regenerar Shims
+### 7. Comprobar firma y suma de comprobación (SHA-256 / GPG)
+
+`nvsh` verifica **automáticamente** la suma SHA-256 contra el archivo oficial `SHASUMS256.txt` de nodejs.org antes de descomprimir cualquier binario. Si el hash no coincide o el archivo está corrupto, la instalación se aborta inmediatamente.
+
+Además, puedes auditar manualmente el hash y la firma GPG desprendida (`SHASUMS256.txt.sig`) con:
+
+```bash
+nvsh verify 20.18.0
+```
+- Comprueba que el archivo descargado coincide bit a bit con el hash oficial del release team de Node.js.
+- Si tienes `gpg` instalado, verifica la firma criptográfica PGP desprendida del release de Node.js.
+
+### 8. Regenerar Shims
 
 Si instalas herramientas globales con `npm install -g pnpm yarn typescript nodemon`:
 ```bash

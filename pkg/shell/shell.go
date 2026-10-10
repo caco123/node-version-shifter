@@ -29,36 +29,43 @@ func DetectShell() string {
 	return "bash"
 }
 
-// GetEnvSnippet returns the shell-specific snippet to add nvsh shims and bin to PATH (and NODE_HOME if a default version is installed).
+// GetEnvSnippet returns the shell-specific snippet to add nvsh shims and bin to PATH (and default version if installed).
 func GetEnvSnippet(shellName string) string {
 	home, _ := os.UserHomeDir()
 	nvshDir := filepath.Join(home, ".nvsh")
 
-	var nodeHomeExport string
+	var verBinDir string
 	def, err := config.GetDefaultVersion()
 	if err == nil && config.VersionInstalled(def) {
 		vPath := config.VersionPath(def)
-		switch shellName {
-		case "zsh", "bash":
-			nodeHomeExport = fmt.Sprintf("export NODE_HOME=\"%s\"\n", vPath)
-		case "fish":
-			nodeHomeExport = fmt.Sprintf("set -gx NODE_HOME \"%s\"\n", vPath)
-		case "powershell":
-			nodeHomeExport = fmt.Sprintf("$env:NODE_HOME = \"%s\"\n", vPath)
-		default:
-			nodeHomeExport = fmt.Sprintf("export NODE_HOME=\"%s\"\n", vPath)
+		if runtime.GOOS == "windows" {
+			verBinDir = vPath
+		} else {
+			verBinDir = filepath.Join(vPath, "bin")
 		}
 	}
 
 	switch shellName {
 	case "zsh", "bash":
-		return fmt.Sprintf("\n# nvsh (node-version-shifter)\nexport NVSH_DIR=\"%s\"\n%sexport PATH=\"$NVSH_DIR/shims:$NVSH_DIR/bin:$PATH\"\n", nvshDir, nodeHomeExport)
+		if verBinDir != "" {
+			return fmt.Sprintf("\n# nvsh (node-version-shifter)\nexport NVSH_DIR=\"%s\"\nexport PATH=\"$NVSH_DIR/shims:$NVSH_DIR/bin:%s:$PATH\"\n", nvshDir, verBinDir)
+		}
+		return fmt.Sprintf("\n# nvsh (node-version-shifter)\nexport NVSH_DIR=\"%s\"\nexport PATH=\"$NVSH_DIR/shims:$NVSH_DIR/bin:$PATH\"\n", nvshDir)
 	case "fish":
-		return fmt.Sprintf("\n# nvsh (node-version-shifter)\nset -gx NVSH_DIR \"%s\"\n%sfish_add_path \"%s/shims\" \"%s/bin\"\n", nvshDir, nodeHomeExport, nvshDir, nvshDir)
+		if verBinDir != "" {
+			return fmt.Sprintf("\n# nvsh (node-version-shifter)\nset -gx NVSH_DIR \"%s\"\nfish_add_path \"%s/shims\" \"%s/bin\" \"%s\"\n", nvshDir, nvshDir, nvshDir, verBinDir)
+		}
+		return fmt.Sprintf("\n# nvsh (node-version-shifter)\nset -gx NVSH_DIR \"%s\"\nfish_add_path \"%s/shims\" \"%s/bin\"\n", nvshDir, nvshDir, nvshDir)
 	case "powershell":
-		return fmt.Sprintf("\n# nvsh (node-version-shifter)\n$env:NVSH_DIR = \"%s\"\n%s$env:PATH = \"$env:NVSH_DIR\\shims;$env:NVSH_DIR\\bin;$env:PATH\"\n", nvshDir, nodeHomeExport)
+		if verBinDir != "" {
+			return fmt.Sprintf("\n# nvsh (node-version-shifter)\n$env:NVSH_DIR = \"%s\"\n$env:PATH = \"$env:NVSH_DIR\\shims;$env:NVSH_DIR\\bin;%s;$env:PATH\"\n", nvshDir, verBinDir)
+		}
+		return fmt.Sprintf("\n# nvsh (node-version-shifter)\n$env:NVSH_DIR = \"%s\"\n$env:PATH = \"$env:NVSH_DIR\\shims;$env:NVSH_DIR\\bin;$env:PATH\"\n", nvshDir)
 	default:
-		return fmt.Sprintf("\n# nvsh\n%sexport PATH=\"%s:%s:$PATH\"\n", nodeHomeExport, config.ShimsDir(), config.BinDir())
+		if verBinDir != "" {
+			return fmt.Sprintf("\n# nvsh\nexport PATH=\"%s:%s:%s:$PATH\"\n", config.ShimsDir(), config.BinDir(), verBinDir)
+		}
+		return fmt.Sprintf("\n# nvsh\nexport PATH=\"%s:%s:$PATH\"\n", config.ShimsDir(), config.BinDir())
 	}
 }
 
@@ -233,131 +240,176 @@ if ([Environment]::GetEnvironmentVariable("NODE_HOME", "User")) {
 	return cmd.Run()
 }
 
-// SetDefaultNodeHome sets the NODE_HOME environment variable to the specified path
-// in the Windows user registry or Unix shell configuration profiles.
-// Only one NODE_HOME variable exists and points to the global default version.
+// VersionBinDir returns the directory containing executables for an installed version.
+// On Windows: <rootDir>/versions/<ver>
+// On Unix: <rootDir>/versions/<ver>/bin
+func VersionBinDir(verPath string) string {
+	if runtime.GOOS == "windows" {
+		return verPath
+	}
+	return filepath.Join(verPath, "bin")
+}
+
+// SetDefaultVersionInPath adds or updates the default Node.js version directory in PATH.
+// Only ONE version entry exists in PATH, corresponding to the global default version.
+func SetDefaultVersionInPath(verPath string) error {
+	binDir := VersionBinDir(verPath)
+	updateCurrentProcessPath(binDir)
+
+	if runtime.GOOS == "windows" {
+		return setWindowsUserVersionPath(binDir)
+	}
+
+	return setUnixShellVersionPath(binDir)
+}
+
+// RemoveVersionFromPath removes any .nvsh/versions directory from PATH.
+func RemoveVersionFromPath() error {
+	updateCurrentProcessPath("")
+
+	if runtime.GOOS == "windows" {
+		return removeWindowsUserVersionPath()
+	}
+
+	return removeUnixShellVersionPath()
+}
+
+// SetDefaultNodeHome is an alias for SetDefaultVersionInPath to ensure compatibility.
 func SetDefaultNodeHome(nodePath string) error {
-	_ = os.Setenv("NODE_HOME", nodePath)
-
-	if runtime.GOOS == "windows" {
-		return setWindowsUserNodeHome(nodePath)
-	}
-
-	return setUnixShellNodeHome(nodePath)
+	return SetDefaultVersionInPath(nodePath)
 }
 
-// RemoveNodeHome removes the NODE_HOME environment variable from the Windows
-// user registry or Unix shell configuration profiles.
+// RemoveNodeHome is an alias for RemoveVersionFromPath to ensure compatibility.
 func RemoveNodeHome() error {
-	_ = os.Unsetenv("NODE_HOME")
-
-	if runtime.GOOS == "windows" {
-		return removeWindowsUserNodeHome()
-	}
-
-	return removeUnixShellNodeHome()
+	return RemoveVersionFromPath()
 }
 
-func setWindowsUserNodeHome(nodePath string) error {
-	cleanPath := strings.ReplaceAll(nodePath, "'", "''")
-	psCmd := fmt.Sprintf("[Environment]::SetEnvironmentVariable('NODE_HOME', '%s', 'User')", cleanPath)
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
-	return cmd.Run()
-}
+func updateCurrentProcessPath(targetBinDir string) {
+	curr := os.Getenv("PATH")
+	sep := string(os.PathListSeparator)
+	parts := filepath.SplitList(curr)
+	var newParts []string
+	replaced := false
 
-func removeWindowsUserNodeHome() error {
-	psCmd := `[Environment]::SetEnvironmentVariable("NODE_HOME", $null, "User")`
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
-	return cmd.Run()
-}
-
-// UpdateShellNodeHomeContent updates or inserts the NODE_HOME export in shell configuration content.
-// It ensures that only ONE NODE_HOME variable definition exists in the file.
-func UpdateShellNodeHomeContent(content, nodePath string, isFish bool) string {
-	lines := strings.Split(content, "\n")
-	var result []string
-	found := false
-
-	var targetPrefix string
-	var newLine string
-	if isFish {
-		targetPrefix = "set -gx NODE_HOME"
-		newLine = fmt.Sprintf("set -gx NODE_HOME \"%s\"", nodePath)
-	} else {
-		targetPrefix = "export NODE_HOME="
-		newLine = fmt.Sprintf("export NODE_HOME=\"%s\"", nodePath)
-	}
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, targetPrefix) || trimmed == "export NODE_HOME" {
-			if !found {
-				result = append(result, newLine)
-				found = true
+	for _, p := range parts {
+		clean := filepath.Clean(p)
+		if strings.Contains(clean, filepath.Join(".nvsh", "versions")) ||
+			strings.Contains(clean, ".nvsh/versions") ||
+			strings.Contains(clean, ".nvsh\\versions") {
+			if targetBinDir != "" && !replaced {
+				newParts = append(newParts, targetBinDir)
+				replaced = true
 			}
-			// If duplicate NODE_HOME definitions exist, remove them so only one exists
 			continue
 		}
-		result = append(result, line)
+		newParts = append(newParts, p)
 	}
 
-	if found {
-		return strings.Join(result, "\n")
+	if targetBinDir != "" && !replaced {
+		newParts = append(newParts, targetBinDir)
 	}
 
-	// If not found, try to insert right after NVSH_DIR definition
-	var finalResult []string
-	inserted := false
-	nvshPrefix := "export NVSH_DIR="
-	if isFish {
-		nvshPrefix = "set -gx NVSH_DIR"
-	}
-
-	for _, line := range result {
-		finalResult = append(finalResult, line)
-		trimmed := strings.TrimSpace(line)
-		if !inserted && strings.HasPrefix(trimmed, nvshPrefix) {
-			finalResult = append(finalResult, newLine)
-			inserted = true
-		}
-	}
-
-	if inserted {
-		return strings.Join(finalResult, "\n")
-	}
-
-	// Otherwise, append to end
-	if len(result) > 0 && result[len(result)-1] != "" {
-		result = append(result, "")
-	}
-	result = append(result, newLine)
-	return strings.Join(result, "\n")
+	_ = os.Setenv("PATH", strings.Join(newParts, sep))
+	_ = os.Unsetenv("NODE_HOME")
 }
 
-// RemoveShellNodeHomeContent removes any NODE_HOME lines from shell configuration content.
-func RemoveShellNodeHomeContent(content string) (string, bool) {
+func setWindowsUserVersionPath(binDir string) error {
+	cleanPath := strings.ReplaceAll(binDir, "'", "''")
+	psCmd := fmt.Sprintf(`
+$target = '%s'
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+$parts = @()
+$replaced = $false
+if ($userPath) {
+    $raw = $userPath -split ';'
+    foreach ($p in $raw) {
+        $trimmed = $p.Trim()
+        if ($trimmed -eq "") { continue }
+        if ($trimmed -like "*\.nvsh\versions*") {
+            if (-not $replaced) {
+                $parts += $target
+                $replaced = $true
+            }
+        } else {
+            $parts += $trimmed
+        }
+    }
+}
+if (-not $replaced) {
+    $parts += $target
+}
+$newPath = $parts -join ';'
+[Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+if ([Environment]::GetEnvironmentVariable("NODE_HOME", "User")) {
+    [Environment]::SetEnvironmentVariable("NODE_HOME", $null, "User")
+}
+`, cleanPath)
+
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
+	return cmd.Run()
+}
+
+func removeWindowsUserVersionPath() error {
+	psCmd := `
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath) {
+    $parts = $userPath -split ';' | Where-Object {
+        $t = $_.Trim()
+        $t -ne "" -and ($t -notlike "*\.nvsh\versions*")
+    }
+    $newPath = $parts -join ';'
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+}
+if ([Environment]::GetEnvironmentVariable("NODE_HOME", "User")) {
+    [Environment]::SetEnvironmentVariable("NODE_HOME", $null, "User")
+}
+`
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
+	return cmd.Run()
+}
+
+// UpdateShellPathContent updates the PATH export in shell configuration content.
+// It ensures that only ONE .nvsh/versions/... entry exists in PATH, and strips any NODE_HOME lines.
+func UpdateShellPathContent(content, verBinDir string, isFish bool) string {
 	lines := strings.Split(content, "\n")
 	var result []string
-	modified := false
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+		// Strip any NODE_HOME lines
 		if strings.HasPrefix(trimmed, "export NODE_HOME=") ||
 			strings.HasPrefix(trimmed, "set -gx NODE_HOME") ||
 			trimmed == "export NODE_HOME" {
-			modified = true
 			continue
 		}
+
+		if isFish {
+			if strings.Contains(line, "fish_add_path") && strings.Contains(line, "shims") && strings.Contains(line, "bin") {
+				if verBinDir != "" {
+					result = append(result, fmt.Sprintf("fish_add_path \"$NVSH_DIR/shims\" \"$NVSH_DIR/bin\" \"%s\"", verBinDir))
+				} else {
+					result = append(result, "fish_add_path \"$NVSH_DIR/shims\" \"$NVSH_DIR/bin\"")
+				}
+				continue
+			}
+		} else {
+			if strings.HasPrefix(trimmed, "export PATH=") && strings.Contains(line, "shims") && strings.Contains(line, "bin") {
+				if verBinDir != "" {
+					result = append(result, fmt.Sprintf("export PATH=\"$NVSH_DIR/shims:$NVSH_DIR/bin:%s:$PATH\"", verBinDir))
+				} else {
+					result = append(result, "export PATH=\"$NVSH_DIR/shims:$NVSH_DIR/bin:$PATH\"")
+				}
+				continue
+			}
+		}
+
 		result = append(result, line)
 	}
 
-	if !modified {
-		return content, false
-	}
-	return strings.Join(result, "\n"), true
+	return strings.Join(result, "\n")
 }
 
-func setUnixShellNodeHome(nodePath string) error {
+func setUnixShellVersionPath(verBinDir string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -371,7 +423,6 @@ func setUnixShellNodeHome(nodePath string) error {
 		filepath.Join(home, ".config", "fish", "config.fish"),
 	}
 
-	updatedCount := 0
 	for _, f := range candidateFiles {
 		data, err := os.ReadFile(f)
 		if err != nil {
@@ -380,68 +431,16 @@ func setUnixShellNodeHome(nodePath string) error {
 		content := string(data)
 		if strings.Contains(content, "NVSH_DIR") || strings.Contains(content, "node-version-shifter") || strings.Contains(content, "NODE_HOME") {
 			isFish := strings.HasSuffix(f, "config.fish")
-			newContent := UpdateShellNodeHomeContent(content, nodePath, isFish)
+			newContent := UpdateShellPathContent(content, verBinDir, isFish)
 			if newContent != content {
 				_ = os.WriteFile(f, []byte(newContent), 0644)
-				updatedCount++
 			}
 		}
 	}
-
-	if updatedCount == 0 {
-		shellName := DetectShell()
-		var primaryFile string
-		switch shellName {
-		case "zsh":
-			primaryFile = filepath.Join(home, ".zshrc")
-		case "fish":
-			primaryFile = filepath.Join(home, ".config", "fish", "config.fish")
-		case "bash":
-			primaryFile = filepath.Join(home, ".bashrc")
-			if runtime.GOOS == "darwin" {
-				bp := filepath.Join(home, ".bash_profile")
-				if _, err := os.Stat(bp); err == nil {
-					primaryFile = bp
-				}
-			}
-		default:
-			primaryFile = filepath.Join(home, ".profile")
-		}
-
-		data, _ := os.ReadFile(primaryFile)
-		isFish := shellName == "fish"
-		newContent := UpdateShellNodeHomeContent(string(data), nodePath, isFish)
-		_ = os.MkdirAll(filepath.Dir(primaryFile), 0755)
-		_ = os.WriteFile(primaryFile, []byte(newContent), 0644)
-	}
-
 	return nil
 }
 
-func removeUnixShellNodeHome() error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	candidateFiles := []string{
-		filepath.Join(home, ".bashrc"),
-		filepath.Join(home, ".bash_profile"),
-		filepath.Join(home, ".zshrc"),
-		filepath.Join(home, ".profile"),
-		filepath.Join(home, ".config", "fish", "config.fish"),
-	}
-
-	for _, f := range candidateFiles {
-		data, err := os.ReadFile(f)
-		if err != nil {
-			continue
-		}
-		newContent, mod := RemoveShellNodeHomeContent(string(data))
-		if mod {
-			_ = os.WriteFile(f, []byte(newContent), 0644)
-		}
-	}
-	return nil
+func removeUnixShellVersionPath() error {
+	return setUnixShellVersionPath("")
 }
 

@@ -145,16 +145,16 @@ nvsh ls-remote 22
 # Establecer la versión para el proyecto actual (crea .node-version en el directorio)
 nvsh use 20
 
-# Establecer la versión global predeterminada del sistema (actualiza automáticamente NODE_HOME)
+# Establecer la versión global predeterminada del sistema (actualiza automáticamente la versión en el Path)
 nvsh default 22
 ```
 
 > [!NOTE]
-> **Gestión automática de la variable de entorno `NODE_HOME`**:
-> - Al instalar tu primera versión de Node.js o al cambiar la versión default (`nvsh default <version>`), `nvsh` crea o actualiza automáticamente la variable de entorno `NODE_HOME` apuntando al directorio de la versión predeterminada (en Windows en las variables de usuario del Registro sin permisos de administrador y en Unix/macOS en tu archivo de perfil `.bashrc`, `.zshrc` o `config.fish`).
-> - **Solo existe una variable `NODE_HOME`** y siempre apunta a la versión global `default`.
-> - **Al inicio no existe ninguna versión instalada**, por lo que `NODE_HOME` no se crea hasta instalar Node.js por primera vez.
-> - **Si se eliminan todas las versiones de Node.js** mediante `nvsh uninstall`, la variable `NODE_HOME` se elimina automáticamente de las variables de entorno del sistema.
+> **Gestión automática de la versión de Node.js en el `Path`**:
+> - Al instalar tu primera versión de Node.js o al cambiar la versión default (`nvsh default <version>`), `nvsh` agrega o actualiza automáticamente el directorio de dicha versión directamente en la variable `Path` (en las variables de usuario del Registro en Windows sin permisos de administrador y en tu archivo de perfil `.bashrc`, `.zshrc` o `config.fish` en Unix/macOS).
+> - **Solo existe una entrada de versión en el `Path`** a la vez y siempre corresponde a la versión global `default` (ej. `%USERPROFILE%\.nvsh\versions\v26.0.0`).
+> - **Al inicio no existe ninguna versión instalada**, por lo que el `Path` solo contendrá `shims` y `bin`, sin rutas de versiones.
+> - **Si se eliminan todas las versiones de Node.js** mediante `nvsh uninstall`, la ruta de la versión se elimina automáticamente del `Path`.
 
 ### 4. Consultar el estado
 

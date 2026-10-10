@@ -166,10 +166,10 @@ func cmdInstall(args []string) {
 		if err := config.SetDefaultVersion(release.Version); err == nil {
 			fmt.Printf("Set %s as default version.\n", release.Version)
 			vPath := config.VersionPath(release.Version)
-			if err := shell.SetDefaultNodeHome(vPath); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not set NODE_HOME: %v\n", err)
+			if err := shell.SetDefaultVersionInPath(vPath); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not add version to PATH: %v\n", err)
 			} else {
-				fmt.Printf("Configured NODE_HOME -> %s\n", vPath)
+				fmt.Printf("Configured default Node.js in PATH -> %s\n", vPath)
 			}
 		}
 	}
@@ -205,17 +205,17 @@ func cmdUninstall(args []string) {
 	// Check remaining installed versions
 	remaining, _ := config.GetInstalledVersions()
 	if len(remaining) == 0 {
-		// All Node versions were uninstalled! Remove default and NODE_HOME
+		// All Node versions were uninstalled! Remove default and remove version from PATH
 		_ = os.Remove(config.DefaultFile())
 		cfg, err := config.LoadConfig()
 		if err == nil {
 			cfg.DefaultVersion = ""
 			_ = config.SaveConfig(cfg)
 		}
-		if err := shell.RemoveNodeHome(); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not remove NODE_HOME: %v\n", err)
+		if err := shell.RemoveVersionFromPath(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not remove version from PATH: %v\n", err)
 		} else {
-			fmt.Println("No Node.js versions remain. Removed NODE_HOME environment variable.")
+			fmt.Println("No Node.js versions remain. Removed Node.js directory from PATH.")
 		}
 	} else {
 		// Check if the uninstalled version was the default version
@@ -225,10 +225,10 @@ func cmdUninstall(args []string) {
 			newDef := remaining[len(remaining)-1]
 			_ = config.SetDefaultVersion(newDef)
 			newPath := config.VersionPath(newDef)
-			if err := shell.SetDefaultNodeHome(newPath); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: could not update NODE_HOME: %v\n", err)
+			if err := shell.SetDefaultVersionInPath(newPath); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not update PATH: %v\n", err)
 			} else {
-				fmt.Printf("Default version updated to %s (NODE_HOME -> %s)\n", newDef, newPath)
+				fmt.Printf("Default version updated to %s (PATH updated -> %s)\n", newDef, newPath)
 			}
 		}
 	}
@@ -344,7 +344,7 @@ func cmdDefault(args []string) {
 		} else {
 			fmt.Printf("Global default version: %s\n", def)
 			if config.VersionInstalled(def) {
-				fmt.Printf("NODE_HOME: %s\n", config.VersionPath(def))
+				fmt.Printf("Default path in PATH: %s\n", config.VersionPath(def))
 			}
 		}
 		return
@@ -364,10 +364,10 @@ func cmdDefault(args []string) {
 	}
 	fmt.Printf("Set default Node.js version to %s\n", matched)
 	vPath := config.VersionPath(matched)
-	if err := shell.SetDefaultNodeHome(vPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not update NODE_HOME: %v\n", err)
+	if err := shell.SetDefaultVersionInPath(vPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not update PATH: %v\n", err)
 	} else {
-		fmt.Printf("Updated NODE_HOME -> %s\n", vPath)
+		fmt.Printf("Updated default Node.js in PATH -> %s\n", vPath)
 	}
 }
 

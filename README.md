@@ -93,7 +93,10 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 # 1. Entrar en la carpeta
 cd node-version-shifter
 
-# 2. Ejecutar el instalador (evitando bloqueos de directiva)
+# 2. Ejecutar el instalador (vía .cmd directo o powershell con Bypass):
+.\install.cmd
+
+# O manualmente con PowerShell:
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -207,10 +210,16 @@ Si deseas desinstalar `nvsh`, eliminar sus shims, versiones descargadas y restau
 ```
 O ejecutando `make uninstall`.
 
-### En Windows (PowerShell):
-Abre PowerShell y ejecuta:
+### En Windows (PowerShell / CMD):
+Ejecuta directamente:
+```cmd
+# Opción más sencilla (no requiere configurar ExecutionPolicy):
+.\uninstall.cmd
+```
+
+O mediante PowerShell:
 ```powershell
-# Desde la carpeta del repositorio:
+# Ejecución con Bypass de política:
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 
 # O forzar desinstalación directa sin confirmación:

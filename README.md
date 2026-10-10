@@ -51,7 +51,7 @@ Cuando ejecutas cualquier comando (`node app.js`, `npm test`, etc.), `nvsh` busc
 
 ```bash
 # 1. Clonar o descargar el repositorio
-git clone https://github.com/fongo/node-version-shifter.git
+git clone https://github.com/caco123/node-version-shifter.git
 cd node-version-shifter
 
 # 2. Ejecutar el instalador

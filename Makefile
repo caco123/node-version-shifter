@@ -7,10 +7,10 @@ BUILD_DIR=dist
 all: test build
 
 build:
-	go build -ldflags="-s -w -X 'github.com/fongo/node-version-shifter/pkg/config.AppVersion=$(VERSION)'" -o $(BINARY_NAME) ./cmd/nvsh
+	go build -ldflags="-s -w -X 'github.com/caco123/node-version-shifter/pkg/config.AppVersion=$(VERSION)'" -o $(BINARY_NAME) ./cmd/nvsh
 
 build-windows:
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X 'github.com/fongo/node-version-shifter/pkg/config.AppVersion=$(VERSION)'" -o $(BINARY_NAME).exe ./cmd/nvsh
+	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X 'github.com/caco123/node-version-shifter/pkg/config.AppVersion=$(VERSION)'" -o $(BINARY_NAME).exe ./cmd/nvsh
 
 test:
 	go test -v ./...

@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/fongo/node-version-shifter/pkg/config"
+	"github.com/caco123/node-version-shifter/pkg/config"
 )
 
 // DetectShell attempts to guess the current user's shell.

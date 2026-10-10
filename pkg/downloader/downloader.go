@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fongo/node-version-shifter/pkg/config"
+	"github.com/caco123/node-version-shifter/pkg/config"
 )
 
 // PlatformInfo holds the OS, Arch, and expected archive file format for Node.js downloads.

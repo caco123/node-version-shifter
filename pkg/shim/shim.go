@@ -8,8 +8,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/fongo/node-version-shifter/pkg/config"
-	"github.com/fongo/node-version-shifter/pkg/resolver"
+	"github.com/caco123/node-version-shifter/pkg/config"
+	"github.com/caco123/node-version-shifter/pkg/resolver"
 )
 
 // DefaultShims are the base binaries guaranteed to be shimmed.

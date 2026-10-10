@@ -79,9 +79,9 @@ fish_add_path "$NVSH_DIR/shims" "$NVSH_DIR/bin"
 
 ---
 
-### En Windows (PowerShell)
+### En Windows (PowerShell / CMD)
 
-Abre **PowerShell como usuario normal** (sin permisos de Administrador):
+Abre **PowerShell o CMD como usuario normal** (sin permisos de Administrador):
 
 **Instalación rápida en una sola línea (One-Liner):**
 ```powershell
@@ -93,14 +93,18 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 # 1. Entrar en la carpeta
 cd node-version-shifter
 
-# 2. Ejecutar el instalador (vía .cmd directo o powershell con Bypass):
+# 2. Ejecutar el instalador (Opción recomendada, evita bloqueos de directiva):
 .\install.cmd
 
-# O manualmente con PowerShell:
+# O alternativamente con PowerShell explícito:
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-El script detectará el binario local, o lo compilará con Go si está disponible, o lo descargará automáticamente. Además, configurará la variable de entorno `Path` de usuario sin requerir elevación de Administrador (UAC).
+> [!TIP]
+> **Nota sobre políticas de PowerShell en Windows (`PSSecurityException`)**:
+> Si ejecutas directamente scripts `.ps1`, Windows puede bloquearlos por su política de ejecución predeterminada (`Restricted`). Los scripts `.cmd` (`install.cmd` y `uninstall.cmd`) resuelven esto de forma nativa sin requerir elevación de administrador ni alterar la seguridad global del sistema.
+
+El instalador detectará el binario local, o lo compilará con Go si está disponible, o lo descargará automáticamente. Además, configurará la variable de entorno `Path` de usuario sin requerir elevación de Administrador (UAC).
 
 ---
 
@@ -165,11 +169,14 @@ nvsh exec 18 node -v
 nvsh exec 20 npm test
 ```
 
-### 6. Desinstalar versiones
+### 6. Desinstalar versiones de Node.js
 
 ```bash
+# Eliminar una versión específica de Node.js instalada:
 nvsh uninstall 18.20.0
 ```
+
+*(Para desinstalar la herramienta `nvsh` por completo de tu sistema, ejecuta `nvsh self-uninstall` o consulta la sección [Desinstalación Completa](#-desinstalación-completa-100-limpia)).*
 
 ### 7. Comprobar firma y suma de comprobación (SHA-256 / GPG)
 
@@ -195,11 +202,17 @@ nvsh rehash
 
 ## 🗑️ Desinstalación Completa (100% Limpia)
 
-Si deseas desinstalar `nvsh`, eliminar sus shims, versiones descargadas y restaurar la configuración original de tu shell y variables de entorno:
+Si deseas desinstalar `nvsh`, eliminar sus shims, versiones descargadas y restaurar la configuración original de tu terminal y variables de entorno:
 
 ### En Linux y macOS (Bash / Zsh / Fish):
+
+**Desinstalación rápida en una sola línea (One-Liner):**
 ```bash
-# Desde la carpeta del repositorio:
+curl -fsSL https://raw.githubusercontent.com/caco123/node-version-shifter/master/uninstall.sh | bash
+```
+
+**Desde la carpeta del repositorio:**
+```bash
 ./uninstall.sh
 
 # O forzar desinstalación directa sin confirmación:
@@ -208,37 +221,47 @@ Si deseas desinstalar `nvsh`, eliminar sus shims, versiones descargadas y restau
 # Conservar versiones descargadas de Node.js eliminando únicamente nvsh y shims:
 ./uninstall.sh --keep-versions
 ```
-O ejecutando `make uninstall`.
+*(O también mediante `make uninstall`).*
+
+---
 
 ### En Windows (PowerShell / CMD):
-Ejecuta directamente:
+
+**Desinstalación rápida en una sola línea (One-Liner):**
+```powershell
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/caco123/node-version-shifter/master/uninstall.ps1 | iex"
+```
+
+**Desde la carpeta del repositorio:**
 ```cmd
-# Opción más sencilla (no requiere configurar ExecutionPolicy):
+# Opción más rápida y sencilla (evita bloqueos de directiva de ejecución):
 .\uninstall.cmd
 ```
 
-O mediante PowerShell:
+O invocando PowerShell con Bypass:
 ```powershell
-# Ejecución con Bypass de política:
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 
 # O forzar desinstalación directa sin confirmación:
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -Force
 
-# Conservar versiones descargadas:
+# Conservar versiones descargadas de Node.js:
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -KeepVersions
 ```
 
-### Directamente desde la CLI de `nvsh`:
+---
+
+### Directamente desde la CLI de `nvsh` (Cualquier SO):
 ```bash
 nvsh self-uninstall
-# o nvsh uninstall --self
+# o también:
+nvsh uninstall --self
 ```
 
-El desinstalador:
-- Elimina `~/.nvsh` (binarios, shims, cache y configuraciones).
-- Limpia las entradas agregadas en tu perfil de shell (`~/.bashrc`, `~/.zshrc`, `~/.config/fish/config.fish`, etc.).
-- En Windows, elimina las rutas de `Path` de usuario del Registro sin requerir permisos de administrador.
+**¿Qué hace el desinstalador?**
+- Elimina `~/.nvsh` (binarios, shims, cache y archivos de configuración).
+- Limpia las líneas añadidas en tu perfil de shell (`~/.bashrc`, `~/.bash_profile`, `~/.zshrc`, `~/.profile` o `~/.config/fish/config.fish`).
+- En Windows, elimina las rutas añadidas a la variable de entorno `Path` de usuario en el Registro y la variable `NVSH_DIR` sin requerir elevación ni permisos de administrador.
 
 ---
 

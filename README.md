@@ -83,15 +83,21 @@ fish_add_path "$NVSH_DIR/shims" "$NVSH_DIR/bin"
 
 Abre **PowerShell como usuario normal** (sin permisos de Administrador):
 
+**Instalación rápida en una sola línea (One-Liner):**
 ```powershell
-# 1. Clonar o descargar el repositorio
-cd node-version-shifter
-
-# 2. Ejecutar el instalador
-.\install.ps1
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/caco123/node-version-shifter/master/install.ps1 | iex"
 ```
 
-El script configurará automáticamente la variable de entorno `Path` del **Usuario** en el Registro (`[Environment]::SetEnvironmentVariable("Path", ..., "User")`), sin pedir confirmación de Administrador (UAC).
+**O si descargas / clonas el repositorio:**
+```powershell
+# 1. Entrar en la carpeta
+cd node-version-shifter
+
+# 2. Ejecutar el instalador (evitando bloqueos de directiva)
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+El script detectará el binario local, o lo compilará con Go si está disponible, o lo descargará automáticamente. Además, configurará la variable de entorno `Path` de usuario sin requerir elevación de Administrador (UAC).
 
 ---
 

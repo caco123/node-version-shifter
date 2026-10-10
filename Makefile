@@ -1,4 +1,4 @@
-.PHONY: all build test clean cross-compile lint
+.PHONY: all build build-windows test clean cross-compile lint
 
 BINARY_NAME=nvsh
 VERSION=1.0.0
@@ -8,6 +8,9 @@ all: test build
 
 build:
 	go build -ldflags="-s -w -X 'github.com/fongo/node-version-shifter/pkg/config.AppVersion=$(VERSION)'" -o $(BINARY_NAME) ./cmd/nvsh
+
+build-windows:
+	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X 'github.com/fongo/node-version-shifter/pkg/config.AppVersion=$(VERSION)'" -o $(BINARY_NAME).exe ./cmd/nvsh
 
 test:
 	go test -v ./...

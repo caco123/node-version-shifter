@@ -64,6 +64,8 @@ func main() {
 		cmdVerify(os.Args[2:])
 	case "setup", "init":
 		cmdSetup()
+	case "self-uninstall":
+		cmdSelfUninstall(os.Args[2:])
 	case "env":
 		cmdEnv()
 	case "version", "-v", "--version":
@@ -96,6 +98,7 @@ Usage:
 Commands:
   install <version>     Download and install a Node.js version (e.g. lts, 22, v20.18.0)
   uninstall <version>   Remove an installed Node.js version
+  self-uninstall        Completely remove nvsh, all shims, and shell configuration
   use <version>         Set Node.js version for current directory (.node-version)
   default [version]     Get or set the global default version
   current               Display active Node.js version and where it was resolved from
@@ -167,7 +170,12 @@ func cmdInstall(args []string) {
 func cmdUninstall(args []string) {
 	if len(args) == 0 {
 		fmt.Println("Usage: nvsh uninstall <version>")
+		fmt.Println("To completely uninstall nvsh, run: nvsh self-uninstall")
 		os.Exit(1)
+	}
+	if args[0] == "--self" || args[0] == "-s" {
+		cmdSelfUninstall(args[1:])
+		return
 	}
 	ver := config.NormalizeVersion(args[0])
 	vPath := config.VersionPath(ver)
@@ -185,6 +193,84 @@ func cmdUninstall(args []string) {
 
 	_ = shim.Rehash()
 	fmt.Printf("Uninstalled Node.js %s successfully.\n", ver)
+}
+
+func cmdSelfUninstall(args []string) {
+	force := false
+	keepVersions := false
+
+	for _, arg := range args {
+		switch arg {
+		case "-y", "--yes", "-f", "--force":
+			force = true
+		case "--keep-versions":
+			keepVersions = true
+		}
+	}
+
+	rootDir := config.GetRootDir()
+
+	if !force {
+		fmt.Printf("This will completely remove nvsh, its shims and configuration from:\n  %s\n", rootDir)
+		if keepVersions {
+			fmt.Printf("  (Downloaded Node.js versions will be kept in %s)\n", config.VersionsDir())
+		} else {
+			fmt.Println("  (All installed Node.js versions will also be deleted)")
+		}
+		fmt.Println()
+		fmt.Print("Are you sure you want to continue? [y/N]: ")
+		var input string
+		fmt.Scanln(&input)
+		input = strings.TrimSpace(strings.ToLower(input))
+		if input != "y" && input != "yes" && input != "s" && input != "si" && input != "sí" {
+			fmt.Println("Uninstallation cancelled.")
+			return
+		}
+	}
+
+	fmt.Println("\n==> Cleaning shell environment and PATH...")
+	cleanedFiles, err := shell.RemoveShellProfile()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not fully clean shell profiles: %v\n", err)
+	} else if len(cleanedFiles) > 0 {
+		for _, f := range cleanedFiles {
+			fmt.Printf("    ✓ Cleaned %s\n", f)
+		}
+	} else {
+		fmt.Println("    ✓ Shell configuration was already clean.")
+	}
+
+	if _, err := os.Stat(rootDir); err == nil {
+		if keepVersions {
+			fmt.Println("==> Removing nvsh binaries, shims, cache and configuration (keeping versions)...")
+			_ = os.RemoveAll(config.BinDir())
+			_ = os.RemoveAll(config.ShimsDir())
+			_ = os.RemoveAll(config.CacheDir())
+			_ = os.Remove(config.DefaultFile())
+			_ = os.Remove(config.ConfigFile())
+			fmt.Printf("    ✓ Retained %s\n", config.VersionsDir())
+		} else {
+			fmt.Printf("==> Removing %s...\n", rootDir)
+			if err := os.RemoveAll(rootDir); err != nil {
+				if runtime.GOOS == "windows" {
+					fmt.Printf("Notice: Scheduling background cleanup (%v)...\n", err)
+					delCmd := fmt.Sprintf("ping 127.0.0.1 -n 2 > nul & rmdir /s /q \"%s\"", rootDir)
+					_ = exec.Command("cmd.exe", "/C", delCmd).Start()
+				} else {
+					fmt.Fprintf(os.Stderr, "Warning: could not remove %s: %v\n", rootDir, err)
+				}
+			} else {
+				fmt.Printf("    ✓ Removed %s\n", rootDir)
+			}
+		}
+	} else {
+		fmt.Printf("==> Directory %s not found. Skipping folder removal.\n", rootDir)
+	}
+
+	fmt.Println("\n======================================================================")
+	fmt.Println("  nvsh has been successfully uninstalled!")
+	fmt.Println("======================================================================")
+	fmt.Println("\nTo reflect changes, please restart your terminal or shell session.")
 }
 
 func cmdUse(args []string) {

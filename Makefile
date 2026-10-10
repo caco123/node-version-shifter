@@ -1,4 +1,4 @@
-.PHONY: all build build-windows test clean cross-compile lint
+.PHONY: all build build-windows test clean cross-compile lint uninstall
 
 BINARY_NAME=nvsh
 VERSION=1.0.0
@@ -30,3 +30,7 @@ cross-compile:
 
 clean:
 	rm -rf $(BINARY_NAME) $(BUILD_DIR)
+
+uninstall:
+	@bash ./uninstall.sh
+

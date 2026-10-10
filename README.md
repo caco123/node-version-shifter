@@ -190,6 +190,49 @@ nvsh rehash
 
 ---
 
+## 🗑️ Desinstalación Completa (100% Limpia)
+
+Si deseas desinstalar `nvsh`, eliminar sus shims, versiones descargadas y restaurar la configuración original de tu shell y variables de entorno:
+
+### En Linux y macOS (Bash / Zsh / Fish):
+```bash
+# Desde la carpeta del repositorio:
+./uninstall.sh
+
+# O forzar desinstalación directa sin confirmación:
+./uninstall.sh -y
+
+# Conservar versiones descargadas de Node.js eliminando únicamente nvsh y shims:
+./uninstall.sh --keep-versions
+```
+O ejecutando `make uninstall`.
+
+### En Windows (PowerShell):
+Abre PowerShell y ejecuta:
+```powershell
+# Desde la carpeta del repositorio:
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
+
+# O forzar desinstalación directa sin confirmación:
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -Force
+
+# Conservar versiones descargadas:
+powershell -ExecutionPolicy Bypass -File .\uninstall.ps1 -KeepVersions
+```
+
+### Directamente desde la CLI de `nvsh`:
+```bash
+nvsh self-uninstall
+# o nvsh uninstall --self
+```
+
+El desinstalador:
+- Elimina `~/.nvsh` (binarios, shims, cache y configuraciones).
+- Limpia las entradas agregadas en tu perfil de shell (`~/.bashrc`, `~/.zshrc`, `~/.config/fish/config.fish`, etc.).
+- En Windows, elimina las rutas de `Path` de usuario del Registro sin requerir permisos de administrador.
+
+---
+
 ## 🏗️ Compilación Cruzada (Linux, macOS, Windows)
 
 Para generar los binarios precompilados de todas las arquitecturas soportadas:

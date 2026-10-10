@@ -125,3 +125,90 @@ if ($oldPath -notlike "*%s*") {
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
 	return cmd.Run()
 }
+
+// CleanShellContent removes lines associated with nvsh from shell config content.
+func CleanShellContent(content string) (string, bool) {
+	lines := strings.Split(content, "\n")
+	var result []string
+	modified := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(line, "nvsh (node-version-shifter)") ||
+			strings.Contains(line, "NVSH_DIR") ||
+			(strings.Contains(line, ".nvsh/shims") && strings.Contains(line, ".nvsh/bin")) ||
+			(strings.Contains(line, "fish_add_path") && strings.Contains(line, "shims") && strings.Contains(line, "bin")) ||
+			trimmed == "# nvsh" {
+			modified = true
+			continue
+		}
+		result = append(result, line)
+	}
+
+	if !modified {
+		return content, false
+	}
+
+	cleaned := strings.Join(result, "\n")
+	return cleaned, true
+}
+
+// RemoveShellProfile cleans up nvsh configurations from shell rc files and environment.
+func RemoveShellProfile() ([]string, error) {
+	if runtime.GOOS == "windows" {
+		if err := removeWindowsUserPath(); err != nil {
+			return nil, err
+		}
+		return []string{"Windows User Environment PATH"}, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+
+	candidateFiles := []string{
+		filepath.Join(home, ".bashrc"),
+		filepath.Join(home, ".bash_profile"),
+		filepath.Join(home, ".zshrc"),
+		filepath.Join(home, ".profile"),
+		filepath.Join(home, ".config", "fish", "config.fish"),
+	}
+
+	var cleaned []string
+	for _, f := range candidateFiles {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+
+		newContent, mod := CleanShellContent(string(data))
+		if mod {
+			if err := os.WriteFile(f, []byte(newContent), 0644); err == nil {
+				cleaned = append(cleaned, f)
+			}
+		}
+	}
+
+	return cleaned, nil
+}
+
+func removeWindowsUserPath() error {
+	psCmd := `
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath) {
+    $parts = $userPath -split ';' | Where-Object {
+        $trimmed = $_.Trim()
+        $trimmed -ne "" -and ($trimmed -notlike "*\.nvsh*") -and ($trimmed -notlike "*node-version-shifter*")
+    }
+    $newPath = $parts -join ';'
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+}
+if ([Environment]::GetEnvironmentVariable("NVSH_DIR", "User")) {
+    [Environment]::SetEnvironmentVariable("NVSH_DIR", $null, "User")
+}
+`
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
+	return cmd.Run()
+}
+

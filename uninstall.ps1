@@ -60,16 +60,16 @@ if ($UserPath) {
     $CleanPath = ($Parts -join ';')
     if ($CleanPath -ne $UserPath) {
         [Environment]::SetEnvironmentVariable("Path", $CleanPath, "User")
-        Write-Host "    ✓ Removed nvsh directories from User PATH." -ForegroundColor Green
+        Write-Host "    [OK] Removed nvsh directories from User PATH." -ForegroundColor Green
     } else {
-        Write-Host "    ✓ User PATH had no nvsh entries." -ForegroundColor Gray
+        Write-Host "    [OK] User PATH had no nvsh entries." -ForegroundColor Gray
     }
 }
 
 # 2. Remove NVSH_DIR User environment variable if set
 if ([Environment]::GetEnvironmentVariable("NVSH_DIR", "User")) {
     [Environment]::SetEnvironmentVariable("NVSH_DIR", $null, "User")
-    Write-Host "    ✓ Removed NVSH_DIR environment variable." -ForegroundColor Green
+    Write-Host "    [OK] Removed NVSH_DIR environment variable." -ForegroundColor Green
 }
 
 # 3. Clean PowerShell profile files if present
@@ -87,10 +87,10 @@ foreach ($prof in $ProfileCandidates) {
                 $_ -notmatch "nvsh|NVSH_DIR|\.nvsh"
             }
             Set-Content -Path $prof -Value $filtered
-            Write-Host "    ✓ Cleaned PowerShell profile: $prof" -ForegroundColor Green
+            Write-Host "    [OK] Cleaned PowerShell profile: $prof" -ForegroundColor Green
         }
     } catch {
-        Write-Host "    ! Could not clean profile $prof : $_" -ForegroundColor Yellow
+        Write-Host "    [!] Could not clean profile $prof" -ForegroundColor Yellow
     }
 }
 
@@ -104,11 +104,11 @@ if (Test-Path $NvshDir) {
                 Remove-Item -Path $target -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
-        Write-Host "    ✓ Retained $VersionsDir" -ForegroundColor Green
+        Write-Host "    [OK] Retained $VersionsDir" -ForegroundColor Green
     } else {
         Write-Host "==> Removing $NvshDir..." -ForegroundColor Cyan
         Remove-Item -Path $NvshDir -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "    ✓ Removed $NvshDir" -ForegroundColor Green
+        Write-Host "    [OK] Removed $NvshDir" -ForegroundColor Green
     }
 } else {
     Write-Host "==> Directory $NvshDir not found. Skipping folder removal." -ForegroundColor Gray

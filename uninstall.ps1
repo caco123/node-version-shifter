@@ -66,10 +66,14 @@ if ($UserPath) {
     }
 }
 
-# 2. Remove NVSH_DIR User environment variable if set
+# 2. Remove NVSH_DIR and NODE_HOME User environment variables if set
 if ([Environment]::GetEnvironmentVariable("NVSH_DIR", "User")) {
     [Environment]::SetEnvironmentVariable("NVSH_DIR", $null, "User")
     Write-Host "    [OK] Removed NVSH_DIR environment variable." -ForegroundColor Green
+}
+if ([Environment]::GetEnvironmentVariable("NODE_HOME", "User")) {
+    [Environment]::SetEnvironmentVariable("NODE_HOME", $null, "User")
+    Write-Host "    [OK] Removed NODE_HOME environment variable." -ForegroundColor Green
 }
 
 # 3. Clean PowerShell profile files if present
@@ -82,9 +86,9 @@ $ProfileCandidates = @(
 foreach ($prof in $ProfileCandidates) {
     try {
         $lines = Get-Content -Path $prof
-        if ($lines -match "nvsh|NVSH_DIR") {
+        if ($lines -match "nvsh|NVSH_DIR|NODE_HOME") {
             $filtered = $lines | Where-Object {
-                $_ -notmatch "nvsh|NVSH_DIR|\.nvsh"
+                $_ -notmatch "nvsh|NVSH_DIR|NODE_HOME|\.nvsh"
             }
             Set-Content -Path $prof -Value $filtered
             Write-Host "    [OK] Cleaned PowerShell profile: $prof" -ForegroundColor Green
@@ -126,6 +130,9 @@ if ($env:PATH) {
 }
 if ($env:NVSH_DIR) {
     Remove-Item env:\NVSH_DIR -ErrorAction SilentlyContinue
+}
+if ($env:NODE_HOME) {
+    Remove-Item env:\NODE_HOME -ErrorAction SilentlyContinue
 }
 
 Write-Host ""

@@ -145,9 +145,16 @@ nvsh ls-remote 22
 # Establecer la versión para el proyecto actual (crea .node-version en el directorio)
 nvsh use 20
 
-# Establecer la versión global predeterminada del sistema
+# Establecer la versión global predeterminada del sistema (actualiza automáticamente NODE_HOME)
 nvsh default 22
 ```
+
+> [!NOTE]
+> **Gestión automática de la variable de entorno `NODE_HOME`**:
+> - Al instalar tu primera versión de Node.js o al cambiar la versión default (`nvsh default <version>`), `nvsh` crea o actualiza automáticamente la variable de entorno `NODE_HOME` apuntando al directorio de la versión predeterminada (en Windows en las variables de usuario del Registro sin permisos de administrador y en Unix/macOS en tu archivo de perfil `.bashrc`, `.zshrc` o `config.fish`).
+> - **Solo existe una variable `NODE_HOME`** y siempre apunta a la versión global `default`.
+> - **Al inicio no existe ninguna versión instalada**, por lo que `NODE_HOME` no se crea hasta instalar Node.js por primera vez.
+> - **Si se eliminan todas las versiones de Node.js** mediante `nvsh uninstall`, la variable `NODE_HOME` se elimina automáticamente de las variables de entorno del sistema.
 
 ### 4. Consultar el estado
 
@@ -261,7 +268,7 @@ nvsh uninstall --self
 **¿Qué hace el desinstalador?**
 - Elimina `~/.nvsh` (binarios, shims, cache y archivos de configuración).
 - Limpia las líneas añadidas en tu perfil de shell (`~/.bashrc`, `~/.bash_profile`, `~/.zshrc`, `~/.profile` o `~/.config/fish/config.fish`).
-- En Windows, elimina las rutas añadidas a la variable de entorno `Path` de usuario en el Registro y la variable `NVSH_DIR` sin requerir elevación ni permisos de administrador.
+- En Windows, elimina las rutas añadidas a la variable de entorno `Path` de usuario en el Registro y las variables `NVSH_DIR` y `NODE_HOME` sin requerir elevación ni permisos de administrador.
 
 ---
 

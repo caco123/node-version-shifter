@@ -83,12 +83,12 @@ CANDIDATE_FILES=(
 clean_file() {
   local file="$1"
   if [ -f "$file" ]; then
-    if grep -qE "nvsh|NVSH_DIR" "$file" 2>/dev/null; then
+    if grep -qE "nvsh|NVSH_DIR|NODE_HOME" "$file" 2>/dev/null; then
       local tmp_file
       tmp_file="$(mktemp "${TMPDIR:-/tmp}/nvsh_clean.XXXXXX")"
       
       # Filter out lines matching nvsh patterns
-      grep -vE "(# nvsh|NVSH_DIR|\.nvsh/shims|\.nvsh/bin|node-version-shifter)" "$file" > "$tmp_file" || true
+      grep -vE "(# nvsh|NVSH_DIR|NODE_HOME|\.nvsh/shims|\.nvsh/bin|node-version-shifter)" "$file" > "$tmp_file" || true
       
       cat "$tmp_file" > "$file"
       rm -f "$tmp_file"
@@ -123,5 +123,6 @@ echo "======================================================================"
 echo ""
 echo "To reflect changes in your current terminal session, restart your terminal"
 echo "or run:"
+echo "  unset NODE_HOME NVSH_DIR 2>/dev/null || true"
 echo "  hash -r 2>/dev/null || rehash 2>/dev/null"
 echo ""

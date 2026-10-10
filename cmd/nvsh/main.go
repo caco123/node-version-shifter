@@ -9,12 +9,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/fongo/node-version-shifter/pkg/config"
-	"github.com/fongo/node-version-shifter/pkg/downloader"
-	"github.com/fongo/node-version-shifter/pkg/remote"
-	"github.com/fongo/node-version-shifter/pkg/resolver"
-	"github.com/fongo/node-version-shifter/pkg/shell"
-	"github.com/fongo/node-version-shifter/pkg/shim"
+	"github.com/caco123/node-version-shifter/pkg/config"
+	"github.com/caco123/node-version-shifter/pkg/downloader"
+	"github.com/caco123/node-version-shifter/pkg/remote"
+	"github.com/caco123/node-version-shifter/pkg/resolver"
+	"github.com/caco123/node-version-shifter/pkg/shell"
+	"github.com/caco123/node-version-shifter/pkg/shim"
 )
 
 func main() {
